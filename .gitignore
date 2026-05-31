@@ -1,0 +1,11 @@
+.dart_tool/
+.packages
+build/
+*.iml
+.idea/
+.DS_Store
+*.lock
+.env
+
+# FVM Version Cache
+.fvm/

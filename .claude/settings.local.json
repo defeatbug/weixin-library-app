@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/admin/codes/titanium/**)",
+      "Read(//Users/admin/codes/egg/**)",
+      "Read(//Users/admin/codes/weixin-library/weixin-library-api/src/main/resources/graphql/**)",
+      "Read(//Users/admin/codes/weixin-library/weixin-library-api/src/main/resources/**)",
+      "Bash(fvm list *)",
+      "Read(//private/tmp/**)",
+      "Bash(fvm flutter *)",
+      "Bash(fvm use *)",
+      "Bash(flutter --version)",
+      "Bash(sw_vers)",
+      "Read(//Users/admin/dev/flutter/bin/cache/dart-sdk/bin/**)",
+      "Bash(/Users/admin/dev/flutter/bin/dart --version)",
+      "Bash(grep -v \"^--$\")",
+      "Bash(docker compose *)",
+      "Bash(docker-compose ps *)",
+      "Bash(flutter analyze *)",
+      "Bash(curl -s http://localhost:8080/graphql -H \"Content-Type: application/json\" -d '{\"query\":\"{hello}\"}')",
+      "Bash(curl -s http://localhost:8080/api/files/test.txt/text)",
+      "WebFetch(domain:github.com)",
+      "Bash(gh api *)",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(d['name'],d['type']\\) for d in data]\")",
+      "WebSearch",
+      "Bash(cd /Users/admin/codes/weixin-library/weixin-library-api && docker compose exec devcontainer mvn compile -q 2>&1)",
+      "Read(//Users/admin/codes/weixin-library/weixin-library-api/**)"
+    ]
+  }
+}
