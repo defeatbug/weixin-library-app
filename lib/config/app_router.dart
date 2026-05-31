@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -23,6 +26,9 @@ class AppRouter {
   static final GlobalKey<NavigatorState> rootNavigatorKey =
       GlobalKey<NavigatorState>(debugLabel: 'root');
 
+  static bool get _isDesktop =>
+      !kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
+
   static final GoRouter router = GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: '/',
@@ -36,93 +42,44 @@ class AppRouter {
       GoRoute(
         path: '/welcome',
         pageBuilder: (context, state) => _fadeTransitionPage(
-          context,
-          state,
-          const WelcomePage(),
+          context, state, const WelcomePage(),
         ),
       ),
       GoRoute(
         path: '/login',
         pageBuilder: (context, state) => _fadeTransitionPage(
-          context,
-          state,
-          const LoginPage(),
+          context, state, const LoginPage(),
         ),
       ),
       ShellRoute(
-        builder: (context, state, child) => MainPage(child: child),
+        builder: (context, state, child) => _isDesktop
+            ? MainDesktopPage(child: child)
+            : MainPage(child: child),
         routes: [
           GoRoute(
             path: '/',
             pageBuilder: (context, state) => _noTransitionPage(
-              context,
-              state,
-              const BookshelfPage(),
+              context, state, const BookshelfPage(),
             ),
           ),
           GoRoute(
             path: '/discover',
             pageBuilder: (context, state) => _noTransitionPage(
-              context,
-              state,
-              const DiscoverPage(),
+              context, state, const DiscoverPage(),
             ),
           ),
           GoRoute(
             path: '/profile',
             pageBuilder: (context, state) => _noTransitionPage(
-              context,
-              state,
-              const ProfilePage(),
+              context, state, const ProfilePage(),
             ),
           ),
           GoRoute(
             path: '/friends',
             pageBuilder: (context, state) => _noTransitionPage(
-              context,
-              state,
-              const FriendFeedPage(),
+              context, state, const FriendFeedPage(),
             ),
           ),
-        ],
-      ),
-      GoRoute(
-        path: '/book/:id',
-        pageBuilder: (context, state) => _fadeTransitionPage(
-          context,
-          state,
-          BookDetailPage(bookId: state.pathParameters['id']!),
-        ),
-      ),
-      GoRoute(
-        path: '/reader/:id',
-        pageBuilder: (context, state) => _fadeTransitionPage(
-          context,
-          state,
-          ReaderPage(bookId: state.pathParameters['id']!),
-        ),
-      ),
-      GoRoute(
-        path: '/search',
-        pageBuilder: (context, state) => _fadeTransitionPage(
-          context,
-          state,
-          const SearchPage(),
-        ),
-      ),
-      GoRoute(
-        path: '/add-book',
-        pageBuilder: (context, state) => _fadeTransitionPage(
-          context,
-          state,
-          const AddBookPage(),
-        ),
-      ),
-
-      // ── Admin routes (desktop sidebar layout) ──
-      ShellRoute(
-        builder: (context, state, child) => MainDesktopPage(child: child),
-        routes: [
           GoRoute(
             path: '/admin/books',
             pageBuilder: (context, state) => _fadeTransitionPage(
@@ -136,6 +93,32 @@ class AppRouter {
             ),
           ),
         ],
+      ),
+      GoRoute(
+        path: '/book/:id',
+        pageBuilder: (context, state) => _fadeTransitionPage(
+          context, state,
+          BookDetailPage(bookId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/reader/:id',
+        pageBuilder: (context, state) => _fadeTransitionPage(
+          context, state,
+          ReaderPage(bookId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/search',
+        pageBuilder: (context, state) => _fadeTransitionPage(
+          context, state, const SearchPage(),
+        ),
+      ),
+      GoRoute(
+        path: '/add-book',
+        pageBuilder: (context, state) => _fadeTransitionPage(
+          context, state, const AddBookPage(),
+        ),
       ),
     ],
   );
