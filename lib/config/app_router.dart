@@ -5,6 +5,7 @@ import '../models/current_user.dart';
 import '../pages/bookshelf/bookshelf_page.dart';
 import '../pages/book_detail/book_detail_page.dart';
 import '../pages/discover/discover_page.dart';
+import '../pages/friends/friend_feed_page.dart';
 import '../pages/login/login_page.dart';
 import '../pages/main/main_page.dart';
 import '../pages/profile/profile_page.dart';
@@ -70,6 +71,14 @@ class AppRouter {
               context,
               state,
               const ProfilePage(),
+            ),
+          ),
+          GoRoute(
+            path: '/friends',
+            pageBuilder: (context, state) => _noTransitionPage(
+              context,
+              state,
+              const FriendFeedPage(),
             ),
           ),
         ],

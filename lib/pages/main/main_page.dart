@@ -9,7 +9,8 @@ class MainPage extends StatelessWidget {
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
     if (location == '/discover') return 1;
-    if (location == '/profile') return 2;
+    if (location == '/friends') return 2;
+    if (location == '/profile') return 3;
     return 0;
   }
 
@@ -28,25 +29,33 @@ class MainPage extends StatelessWidget {
               context.go('/discover');
               break;
             case 2:
+              context.go('/friends');
+              break;
+            case 3:
               context.go('/profile');
               break;
           }
         },
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.library_books_outlined),
-            selectedIcon: Icon(Icons.library_books),
-            label: '书架',
+            icon: Icon(Icons.menu_book_outlined),
+            selectedIcon: Icon(Icons.menu_book),
+            label: '阅读',
           ),
           NavigationDestination(
-            icon: Icon(Icons.explore_outlined),
-            selectedIcon: Icon(Icons.explore),
-            label: '发现',
+            icon: Icon(Icons.store_outlined),
+            selectedIcon: Icon(Icons.store),
+            label: '书城',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.people_outline),
+            selectedIcon: Icon(Icons.people),
+            label: '书友',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),
             selectedIcon: Icon(Icons.person),
-            label: '我的',
+            label: '我',
           ),
         ],
       ),
