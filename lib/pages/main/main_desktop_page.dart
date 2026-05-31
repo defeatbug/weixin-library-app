@@ -16,7 +16,7 @@ class _MainDesktopPageState extends State<MainDesktopPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isAdmin = CurrentUser.instance.email == 'admin@weixin.com';
+    final isAdmin = CurrentUser.instance.email == 'admin@weixin.library';
     final sidebarItems = isAdmin ? AdminRouter.sidebarItems : <AdminSidebarItem>[];
 
     return Scaffold(
