@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'config/application.dart';
 import 'config/app_router.dart';
 import 'config/app_theme.dart';
+import 'config/initializers/window_manager_init.dart';
 
 class App extends StatefulWidget {
   const App({super.key});
@@ -12,6 +13,7 @@ class App extends StatefulWidget {
     WidgetsFlutterBinding.ensureInitialized();
     await dotenv.load(fileName: '.env');
     await Application.init();
+    await WindowManagerInit.init();
     runApp(const App());
   }
 

@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../admin/pages/book/a_books_page.dart';
+import '../admin/pages/user/a_users_page.dart';
 import '../models/current_user.dart';
 import '../pages/bookshelf/bookshelf_page.dart';
 import '../pages/book_detail/book_detail_page.dart';
 import '../pages/discover/discover_page.dart';
 import '../pages/friends/friend_feed_page.dart';
 import '../pages/login/login_page.dart';
+import '../pages/main/main_desktop_page.dart';
 import '../pages/main/main_page.dart';
 import '../pages/profile/profile_page.dart';
 import '../pages/reader/reader_page.dart';
@@ -114,6 +117,25 @@ class AppRouter {
           state,
           const AddBookPage(),
         ),
+      ),
+
+      // ── Admin routes (desktop sidebar layout) ──
+      ShellRoute(
+        builder: (context, state, child) => MainDesktopPage(child: child),
+        routes: [
+          GoRoute(
+            path: '/admin/books',
+            pageBuilder: (context, state) => _fadeTransitionPage(
+              context, state, const ABooksPage(),
+            ),
+          ),
+          GoRoute(
+            path: '/admin/users',
+            pageBuilder: (context, state) => _fadeTransitionPage(
+              context, state, const AUsersPage(),
+            ),
+          ),
+        ],
       ),
     ],
   );
