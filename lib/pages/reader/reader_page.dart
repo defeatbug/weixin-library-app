@@ -1,11 +1,11 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../config/app_colors.dart';
 import '../../api/book_api.dart';
 import '../../api/bookshelf_api.dart';
+import '../../api/file_api.dart';
 import '../../api/reading_progress_api.dart';
-import '../../config/application.dart';
 import '../../helpers/graphql_helper.dart';
 import '../../models/book.dart';
 import '../../models/reading_progress.dart';
@@ -114,36 +114,31 @@ class _ReaderPageState extends State<ReaderPage> {
 
   Future<void> _loadTextContent(String fileUrl, String fileType) async {
     try {
-      final textUrl = fileType == 'TXT' ? fileUrl : '$fileUrl/text';
-      final dio = Dio(BaseOptions(
-        baseUrl: Application.apiBaseURL,
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 30),
-      ));
-      final response = await dio.get<String>(textUrl);
-      if (response.data != null) {
-        var text = response.data!;
-        // Split by newlines first
-        for (var line in text.split('\n')) {
-          line = line.trim();
-          if (line.isEmpty) continue;
-          // Break very long lines at sentence boundaries or max 200 chars
-          while (line.length > 200) {
-            // Try to break at Chinese/English sentence ending
-            int breakAt = -1;
-            for (var sep in ['。', '！', '？', '…', '. ', '! ', '? ', '\n']) {
-              int idx = line.indexOf(sep, 100);
-              if (idx != -1 && idx < 250) {
-                breakAt = idx + sep.length;
-                break;
-              }
+      final text = await FileApi.fetchText(
+        fileUrl,
+        isEpub: fileType == 'EPUB',
+      );
+      if (text.isEmpty) {
+        _allLines.add('（内容为空）');
+        return;
+      }
+      for (var line in text.split('\n')) {
+        line = line.trim();
+        if (line.isEmpty) continue;
+        while (line.length > 200) {
+          int breakAt = -1;
+          for (var sep in ['。', '！', '？', '…', '. ', '! ', '? ', '\n']) {
+            int idx = line.indexOf(sep, 100);
+            if (idx != -1 && idx < 250) {
+              breakAt = idx + sep.length;
+              break;
             }
-            if (breakAt == -1) breakAt = 200;
-            _allLines.add(line.substring(0, breakAt).trim());
-            line = line.substring(breakAt).trim();
           }
-          if (line.isNotEmpty) _allLines.add(line);
+          if (breakAt == -1) breakAt = 200;
+          _allLines.add(line.substring(0, breakAt).trim());
+          line = line.substring(breakAt).trim();
         }
+        if (line.isNotEmpty) _allLines.add(line);
       }
     } catch (_) {
       _allLines.add('（内容加载失败）');
@@ -152,20 +147,7 @@ class _ReaderPageState extends State<ReaderPage> {
 
   Future<void> _loadToc(String fileUrl) async {
     try {
-      final tocUrl = '$fileUrl/toc';
-      final dio = Dio(BaseOptions(
-        baseUrl: Application.apiBaseURL,
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 30),
-      ));
-      final response = await dio.get<Map<String, dynamic>>(tocUrl);
-      final chapters = response.data?['chapters'] as List<dynamic>?;
-      if (chapters != null) {
-        _chapters.addAll(chapters.map((c) {
-          if (c is Map) return (c['title'] as String?) ?? '';
-          return c.toString();
-        }).where((t) => t.isNotEmpty));
-      }
+      _chapters.addAll(await FileApi.fetchToc(fileUrl));
     } catch (_) {
       // TOC is optional
     }
@@ -240,14 +222,14 @@ class _ReaderPageState extends State<ReaderPage> {
                         _chapters[index],
                         style: TextStyle(
                           fontSize: 15,
-                          color: isCurrent ? const Color(0xFF07C160) : theme.fg,
+                          color: isCurrent ? AppColors.primary : theme.fg,
                           fontWeight: isCurrent ? FontWeight.w600 : FontWeight.normal,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                       trailing: isCurrent
-                          ? const Icon(Icons.chevron_right, size: 18, color: Color(0xFF07C160))
+                          ? Icon(Icons.chevron_right, size: 18, color: AppColors.primary)
                           : null,
                       onTap: () {
                         Navigator.of(ctx).pop();
@@ -275,93 +257,167 @@ class _ReaderPageState extends State<ReaderPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Handle bar
-                Padding(
-                  padding: const EdgeInsets.only(top: 12, bottom: 4),
-                  child: Container(
-                    width: 40, height: 4,
-                    decoration: BoxDecoration(
-                      color: theme.fg.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(2),
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12, bottom: 4),
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: theme.fg.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
-                ),
-                // Title
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  child: Row(
-                    children: [
-                      Text('字体大小', style: TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold, color: theme.fg)),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                // Preview
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: theme.fg.withValues(alpha: 0.04),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '小时候，每到夜晚，我总会坐在院子里，仰着脑袋，天真地问妈妈...',
-                      style: TextStyle(fontSize: _fontSize, height: 1.6, color: theme.fg),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '阅读设置',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: theme.fg,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-                // Font size options
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('A', style: TextStyle(
-                        fontSize: 14, color: theme.fg.withValues(alpha: 0.6))),
-                      ..._fontSizes.map((size) {
-                        final selected = _fontSize == size;
-                        return GestureDetector(
-                          onTap: () {
-                            Navigator.of(ctx).pop();
-                            _onFontSizeChanged(size);
-                          },
-                          child: Container(
-                            width: 40, height: 40,
-                            decoration: BoxDecoration(
-                              color: selected
-                                  ? const Color(0xFF07C160).withValues(alpha: 0.15)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(20),
+                  Divider(height: 1, color: theme.fg.withValues(alpha: 0.08)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: theme.fg.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '小时候，每到夜晚，我总会坐在院子里，仰着脑袋，天真地问妈妈...',
+                        style: TextStyle(
+                          fontSize: _fontSize,
+                          height: 1.6,
+                          color: theme.fg,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('A',
+                            style: TextStyle(
+                                fontSize: 14,
+                                color: theme.fg.withValues(alpha: 0.6))),
+                        ..._fontSizes.map((size) {
+                          final selected = _fontSize == size;
+                          return GestureDetector(
+                            onTap: () {
+                              _onFontSizeChanged(size);
+                              setSheetState(() {});
+                            },
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? AppColors.primary.withValues(alpha: 0.15)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                '${size.toInt()}',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight:
+                                      selected ? FontWeight.bold : FontWeight.normal,
+                                  color: selected ? AppColors.primary : theme.fg,
+                                ),
+                              ),
                             ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              '${size.toInt()}',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                                color: selected ? const Color(0xFF07C160) : theme.fg,
+                          );
+                        }),
+                        Text('A',
+                            style: TextStyle(
+                                fontSize: 22,
+                                color: theme.fg.withValues(alpha: 0.6))),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '背景',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: theme.fg.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                    child: Row(
+                      children: List.generate(_themes.length, (index) {
+                        final t = _themes[index];
+                        final selected = _themeIndex == index;
+                        return Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.only(
+                              right: index < _themes.length - 1 ? 10 : 0,
+                            ),
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() => _themeIndex = index);
+                                setSheetState(() {});
+                              },
+                              child: Container(
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: t.bg,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: selected
+                                        ? AppColors.primary
+                                        : theme.fg.withValues(alpha: 0.15),
+                                    width: selected ? 2 : 1,
+                                  ),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  t.name,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: t.fg,
+                                    fontWeight: selected
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
                         );
                       }),
-                      Text('A', style: TextStyle(
-                        fontSize: 22, color: theme.fg.withValues(alpha: 0.6))),
-                    ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
+                ],
+              ),
+            );
+          },
         );
       },
     );
@@ -502,6 +558,9 @@ class _ReaderPageState extends State<ReaderPage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        Icon(Icons.menu_book_outlined,
+                            size: 56, color: theme.fg.withValues(alpha: 0.2)),
+                        const SizedBox(height: 16),
                         Text(book.title, style: TextStyle(
                           fontSize: 22, fontWeight: FontWeight.bold, color: theme.fg)),
                         const SizedBox(height: 8),
@@ -509,8 +568,21 @@ class _ReaderPageState extends State<ReaderPage> {
                           fontSize: 15, color: theme.fg.withValues(alpha: 0.6))),
                         if (book.fileType != 'TXT' && book.fileType != 'EPUB') ...[
                           const SizedBox(height: 24),
-                          Text('${book.fileType} 格式暂不支持预览', style: TextStyle(
-                            fontSize: 14, color: theme.fg.withValues(alpha: 0.4))),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: theme.fg.withValues(alpha: 0.06),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '${book.fileType} 格式暂不支持预览',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: theme.fg.withValues(alpha: 0.5),
+                              ),
+                            ),
+                          ),
                         ],
                       ],
                     ),
@@ -645,9 +717,9 @@ class _ReaderPageState extends State<ReaderPage> {
                             // Font size
                             _BottomIcon(
                               icon: Icons.text_fields,
-                              label: '字体',
+                              label: '设置',
                               color: theme.fg,
-                              onTap: () => _showFontSheet(),
+                              onTap: _showFontSheet,
                             ),
                             // Table of contents
                             _BottomIcon(

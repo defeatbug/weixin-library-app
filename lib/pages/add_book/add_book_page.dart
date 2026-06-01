@@ -5,6 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../api/book_api.dart';
 import '../../api/bookshelf_api.dart';
 import '../../api/upload_api.dart';
+import '../../config/app_colors.dart';
+import '../../widgets/wr_card.dart';
+import '../../widgets/wr_text_field.dart';
 
 class AddBookPage extends StatefulWidget {
   const AddBookPage({super.key});
@@ -34,7 +37,7 @@ class _AddBookPageState extends State<AddBookPage> {
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['txt', 'epub', 'pdf', 'mobi'],
+      allowedExtensions: ['txt', 'epub'],
     );
     if (result != null) {
       setState(() => _selectedFile = result.files.first);
@@ -45,15 +48,18 @@ class _AddBookPageState extends State<AddBookPage> {
     switch (extension.toLowerCase()) {
       case 'epub':
         return 'EPUB';
-      case 'pdf':
-        return 'PDF';
       case 'txt':
         return 'TXT';
-      case 'mobi':
-        return 'MOBI';
       default:
         return 'EPUB';
     }
+  }
+
+  String _formatSize(int bytes) {
+    if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    }
+    return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
   }
 
   Future<void> _submit() async {
@@ -77,7 +83,6 @@ class _AddBookPageState extends State<AddBookPage> {
     });
 
     try {
-      // 1. Upload file
       final uploadResult = await UploadApi.uploadFile(
         _selectedFile!.path!,
         _selectedFile!.name,
@@ -103,17 +108,15 @@ class _AddBookPageState extends State<AddBookPage> {
       final ext = _selectedFile!.name.split('.').last;
       final fileType = _inferFileType(ext);
 
-      // 2. Create book via GraphQL
       final result = await BookApi.createBook(
         title: _titleController.text.trim(),
         author: _authorController.text.trim(),
         fileUrl: fileUrl,
         fileType: fileType,
         fileSizeBytes: fileSize,
-        description:
-            _descController.text.trim().isNotEmpty
-                ? _descController.text.trim()
-                : null,
+        description: _descController.text.trim().isNotEmpty
+            ? _descController.text.trim()
+            : null,
       );
 
       if (!mounted) return;
@@ -126,7 +129,6 @@ class _AddBookPageState extends State<AddBookPage> {
         return;
       }
 
-      // 3. Auto-add to bookshelf
       final bookId = result.data?['createBook']?['id'] as String?;
       if (bookId != null) {
         await BookshelfApi.addToBookshelf(bookId);
@@ -148,127 +150,157 @@ class _AddBookPageState extends State<AddBookPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
-      appBar: AppBar(title: const Text('添加图书')),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('导入书籍'),
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // File picker
-            InkWell(
-              onTap: _isUploading ? null : _pickFile,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 40),
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: theme.colorScheme.outlineVariant,
-                    width: 2,
-                    strokeAlign: BorderSide.strokeAlignInside,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  color: theme.colorScheme.surfaceContainerLow,
-                ),
-                child: Column(
-                  children: [
-                    Icon(
-                      _selectedFile != null
-                          ? Icons.insert_drive_file
-                          : Icons.upload_file,
-                      size: 48,
-                      color: theme.colorScheme.primary,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _selectedFile?.name ?? '点击选择电子书文件',
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                    if (_selectedFile != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        '${(_selectedFile!.size / 1024 / 1024).toStringAsFixed(1)} MB',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-
+            _buildFilePicker(),
             if (_isUploading && _uploadProgress > 0) ...[
               const SizedBox(height: 16),
-              LinearProgressIndicator(value: _uploadProgress),
-              const SizedBox(height: 4),
-              Text(
-                '上传中 ${(_uploadProgress * 100).toStringAsFixed(0)}%',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: _uploadProgress,
+                  backgroundColor: AppColors.searchBg,
+                  color: AppColors.primary,
+                  minHeight: 4,
                 ),
               ),
-            ],
-
-            const SizedBox(height: 24),
-
-            // Title
-            TextField(
-              controller: _titleController,
-              decoration: const InputDecoration(
-                labelText: '书名 *',
-                prefixIcon: Icon(Icons.title),
-              ),
-              enabled: !_isUploading,
-            ),
-            const SizedBox(height: 16),
-
-            // Author
-            TextField(
-              controller: _authorController,
-              decoration: const InputDecoration(
-                labelText: '作者 *',
-                prefixIcon: Icon(Icons.person),
-              ),
-              enabled: !_isUploading,
-            ),
-            const SizedBox(height: 16),
-
-            // Description
-            TextField(
-              controller: _descController,
-              decoration: const InputDecoration(
-                labelText: '简介（可选）',
-                prefixIcon: Icon(Icons.description),
-                alignLabelWithHint: true,
-              ),
-              maxLines: 3,
-              enabled: !_isUploading,
-            ),
-            const SizedBox(height: 24),
-
-            // Error
-            if (_error != null) ...[
+              const SizedBox(height: 8),
               Text(
-                _error!,
-                style: TextStyle(color: theme.colorScheme.error),
+                '上传中 ${(_uploadProgress * 100).toStringAsFixed(0)}%',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
-              const SizedBox(height: 16),
             ],
+            const SizedBox(height: 20),
+            WrCard(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  WrTextField(
+                    controller: _titleController,
+                    hint: '书名 *',
+                    icon: Icons.menu_book_outlined,
+                    enabled: !_isUploading,
+                  ),
+                  const SizedBox(height: 12),
+                  WrTextField(
+                    controller: _authorController,
+                    hint: '作者 *',
+                    icon: Icons.person_outline,
+                    enabled: !_isUploading,
+                  ),
+                  const SizedBox(height: 12),
+                  WrTextField(
+                    controller: _descController,
+                    hint: '简介（可选）',
+                    icon: Icons.notes_outlined,
+                    maxLines: 3,
+                    enabled: !_isUploading,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '支持 TXT、EPUB 格式',
+              style: TextStyle(fontSize: 12, color: AppColors.textHint),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 16),
+              Text(_error!, style: TextStyle(color: AppColors.iconCoral)),
+            ],
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: FilledButton(
+                onPressed: _isUploading ? null : _submit,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  disabledBackgroundColor:
+                      AppColors.primary.withValues(alpha: 0.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                ),
+                child: _isUploading
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        '导入到书架',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-            // Submit
-            FilledButton(
-              onPressed: _isUploading ? null : _submit,
-              child: _isUploading
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('添加图书'),
+  Widget _buildFilePicker() {
+    final selected = _selectedFile;
+
+    return GestureDetector(
+      onTap: _isUploading ? null : _pickFile,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected != null ? AppColors.primary : AppColors.border,
+            width: selected != null ? 1.5 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppColors.primaryLight,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                selected != null ? Icons.description_outlined : Icons.upload_file,
+                size: 28,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              selected?.name ?? '点击选择电子书文件',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              selected != null
+                  ? _formatSize(selected.size)
+                  : 'TXT / EPUB',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),
           ],
         ),

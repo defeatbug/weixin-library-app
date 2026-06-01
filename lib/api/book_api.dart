@@ -25,7 +25,7 @@ class BookApi {
   static const _searchQuery = '''
     query SearchBooks(\$query: String!, \$page: Int, \$size: Int) {
       searchBooks(query: \$query, page: \$page, size: \$size) {
-        items { id title author coverUrl fileUrl fileSizeBytes createdAt averageRating reviewCount description }
+        items { id title author coverUrl fileUrl fileSizeBytes createdAt averageRating reviewCount description fileType }
         total page size
       }
     }

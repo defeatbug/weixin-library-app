@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../../config/app_colors.dart';
 import '../../api/api_admin.dart';
 import '../../../helpers/graphql_helper.dart';
+import '../../../widgets/wr_card.dart';
+import '../../../widgets/wr_text_field.dart';
 
 class AUsersPage extends StatefulWidget {
   const AUsersPage({super.key});
@@ -25,15 +28,25 @@ class _AUsersPageState extends State<AUsersPage> {
     _load();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     setState(() => _isLoading = true);
     try {
       final result = await ApiAdmin.getAdminUsers(
-        page: _page, size: _pageSize, search: _search,
+        page: _page,
+        size: _pageSize,
+        search: _search,
       );
       if (!mounted) return;
       final items = GraphQLHelper.getItemsFromResult(
-        result, (m) => m, ['adminUsers', 'items'],
+        result,
+        (m) => m,
+        ['adminUsers', 'items'],
       );
       setState(() {
         _users = items.cast<Map<String, dynamic>>();
@@ -53,100 +66,213 @@ class _AUsersPageState extends State<AUsersPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('用户管理')),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(12),
-            child: TextField(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: WrTextField(
               controller: _searchController,
-              decoration: InputDecoration(
-                hintText: '搜索邮箱或昵称...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          _onSearch('');
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              ),
+              hint: '搜索邮箱或昵称',
+              icon: Icons.search,
               onSubmitted: _onSearch,
             ),
           ),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.primary,
+                    ),
+                  )
                 : _users.isEmpty
-                    ? const Center(child: Text('暂无用户'))
-                    : _buildTable(theme),
+                    ? Center(
+                        child: Text(
+                          '暂无用户',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _load,
+                        color: AppColors.primary,
+                        child: ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                          itemCount: _users.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 10),
+                          itemBuilder: (context, index) {
+                            final user = _users[index];
+                            final role = user['role'] as String? ?? 'USER';
+                            final isAdmin = role == 'ADMIN';
+                            return WrCard(
+                              padding: const EdgeInsets.all(14),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 22,
+                                    backgroundColor: isAdmin
+                                        ? AppColors.vipBg
+                                        : AppColors.primaryLight,
+                                    child: Text(
+                                      (user['displayName'] as String? ?? '?')
+                                          .characters
+                                          .first
+                                          .toUpperCase(),
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: isAdmin
+                                            ? AppColors.vipGold
+                                            : AppColors.primary,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                user['displayName'] as String? ??
+                                                    '未命名',
+                                                style: TextStyle(
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: AppColors.textPrimary,
+                                                ),
+                                              ),
+                                            ),
+                                            _RoleBadge(role: role),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          user['email'] as String? ?? '',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Row(
+                                          children: [
+                                            _StatChip(
+                                              icon: Icons.library_books_outlined,
+                                              label: '书架 ${user['bookshelfCount'] ?? 0}',
+                                            ),
+                                            const SizedBox(width: 12),
+                                            _StatChip(
+                                              icon: Icons.rate_review_outlined,
+                                              label: '评价 ${user['reviewCount'] ?? 0}',
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
           ),
-          _buildPagination(theme),
+          _buildPagination(),
         ],
       ),
     );
   }
 
-  Widget _buildTable(ThemeData theme) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: SingleChildScrollView(
-        child: DataTable(
-          columns: const [
-            DataColumn(label: Text('邮箱')),
-            DataColumn(label: Text('昵称')),
-            DataColumn(label: Text('角色')),
-            DataColumn(label: Text('书架')),
-            DataColumn(label: Text('评价')),
-          ],
-          rows: _users.map((user) {
-            final role = user['role'] as String? ?? 'USER';
-            return DataRow(cells: [
-              DataCell(Text(user['email'] as String? ?? '')),
-              DataCell(Text(user['displayName'] as String? ?? '')),
-              DataCell(Chip(
-                label: Text(role, style: const TextStyle(fontSize: 12)),
-                backgroundColor: role == 'ADMIN'
-                    ? Colors.amber.withValues(alpha: 0.2)
-                    : theme.colorScheme.surfaceContainerHighest,
-              )),
-              DataCell(Text('${user['bookshelfCount'] ?? 0}')),
-              DataCell(Text('${user['reviewCount'] ?? 0}')),
-            ]);
-          }).toList(),
-        ),
+  Widget _buildPagination() {
+    final totalPages = (_total / _pageSize).ceil().clamp(1, 9999);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        border: Border(top: BorderSide(color: AppColors.divider)),
       ),
-    );
-  }
-
-  Widget _buildPagination(ThemeData theme) {
-    final totalPages = (_total / _pageSize).ceil();
-    return Padding(
-      padding: const EdgeInsets.all(12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           TextButton(
-            onPressed: _page > 0 ? () { _page--; _load(); } : null,
+            onPressed: _page > 0
+                ? () {
+                    _page--;
+                    _load();
+                  }
+                : null,
             child: const Text('上一页'),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text('第 ${_page + 1} 页 / 共 $totalPages 页 (${_total}条)'),
+            child: Text(
+              '${_page + 1} / $totalPages · $_total 条',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
           ),
           TextButton(
-            onPressed: (_page + 1) < totalPages ? () { _page++; _load(); } : null,
+            onPressed: (_page + 1) < totalPages
+                ? () {
+                    _page++;
+                    _load();
+                  }
+                : null,
             child: const Text('下一页'),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _RoleBadge extends StatelessWidget {
+  final String role;
+
+  const _RoleBadge({required this.role});
+
+  @override
+  Widget build(BuildContext context) {
+    final isAdmin = role == 'ADMIN';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: isAdmin ? AppColors.vipBg : AppColors.searchBg,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        isAdmin ? '管理员' : '用户',
+        style: TextStyle(
+          fontSize: 11,
+          color: isAdmin ? AppColors.vipGold : AppColors.textSecondary,
+        ),
+      ),
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _StatChip({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: AppColors.textHint),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: AppColors.textHint),
+        ),
+      ],
     );
   }
 }

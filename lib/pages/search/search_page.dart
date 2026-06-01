@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../api/book_api.dart';
+import '../../config/app_colors.dart';
 import '../../helpers/graphql_helper.dart';
 import '../../models/book.dart';
+import '../../widgets/book_cover.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -39,9 +41,7 @@ class _SearchPageState extends State<SearchPage> {
 
       setState(() {
         _results = GraphQLHelper.getItemsFromResult(
-          result,
-          Book.fromJson,
-          ['searchBooks', 'items'],
+          result, Book.fromJson, ['searchBooks', 'items'],
         );
         _isLoading = false;
       });
@@ -56,111 +56,169 @@ class _SearchPageState extends State<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: TextField(
-          controller: _searchController,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: '搜索书名、作者...',
-            border: InputBorder.none,
-            filled: false,
+        title: Container(
+          height: 36,
+          decoration: BoxDecoration(
+            color: AppColors.searchBg,
+            borderRadius: BorderRadius.circular(18),
           ),
-          onSubmitted: _search,
+          child: TextField(
+            controller: _searchController,
+            autofocus: true,
+            style: TextStyle(fontSize: 15, color: AppColors.textPrimary),
+            decoration: InputDecoration(
+              hintText: '搜索书名、作者...',
+              hintStyle: TextStyle(color: AppColors.textHint),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+              prefixIcon: Icon(Icons.search, size: 20, color: AppColors.textHint),
+            ),
+            onSubmitted: _search,
+          ),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
+          TextButton(
             onPressed: () => _search(_searchController.text),
+            child: const Text('搜索'),
           ),
         ],
       ),
-      body: _buildBody(theme),
+      body: _buildBody(),
     );
   }
 
-  Widget _buildBody(ThemeData theme) {
+  Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
     }
 
     if (_hasError) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.cloud_off, size: 48,
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
-            const SizedBox(height: 16),
-            Text('搜索失败', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            FilledButton.tonal(
-              onPressed: () => _search(_searchController.text),
-              child: const Text('重试'),
-            ),
-          ],
+      return _emptyState(
+        icon: Icons.cloud_off,
+        title: '搜索失败',
+        action: TextButton(
+          onPressed: () => _search(_searchController.text),
+          child: const Text('重试'),
         ),
       );
     }
 
     if (!_hasSearched) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.search, size: 64,
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.2)),
-            const SizedBox(height: 16),
-            Text('搜索你想读的书', style: theme.textTheme.bodyLarge
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-          ],
-        ),
+      return _emptyState(
+        icon: Icons.search,
+        title: '搜索你想读的书',
       );
     }
 
     if (_results.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.search_off, size: 48,
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
-            const SizedBox(height: 16),
-            Text('没有找到相关图书', style: theme.textTheme.bodyLarge
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-          ],
-        ),
+      return _emptyState(
+        icon: Icons.search_off,
+        title: '没有找到相关图书',
       );
     }
 
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: _results.length,
-      separatorBuilder: (_, __) => const Divider(),
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final book = _results[index];
-        return ListTile(
-          contentPadding: const EdgeInsets.symmetric(vertical: 4),
-          leading: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: Container(
-              width: 48,
-              height: 64,
-              color: theme.colorScheme.surfaceContainerHighest,
-              child: book.coverUrl != null
-                  ? Image.network(book.coverUrl!, fit: BoxFit.cover)
-                  : const Icon(Icons.auto_stories),
-            ),
-          ),
-          title: Text(book.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-          subtitle: Text(book.author, maxLines: 1),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () =>
-              context.push('/book/${book.id}'),
+        return _SearchResultCard(
+          book: book,
+          onTap: () => context.push('/book/${book.id}'),
         );
       },
+    );
+  }
+
+  Widget _emptyState({
+    required IconData icon,
+    required String title,
+    Widget? action,
+  }) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 56, color: AppColors.textHint.withValues(alpha: 0.4)),
+          const SizedBox(height: 16),
+          Text(title, style: TextStyle(color: AppColors.textSecondary)),
+          if (action != null) ...[const SizedBox(height: 12), action],
+        ],
+      ),
+    );
+  }
+}
+
+class _SearchResultCard extends StatelessWidget {
+  final Book book;
+  final VoidCallback onTap;
+
+  const _SearchResultCard({required this.book, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            BookCover(
+              coverUrl: book.coverUrl,
+              fileUrl: book.fileUrl,
+              fileType: book.fileType,
+              title: book.title,
+              width: 52,
+              height: 72,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    book.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    book.author,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  if (book.averageRating != null && book.averageRating! > 0) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '${book.averageRating!.toStringAsFixed(1)} 分',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.iconOrange,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: AppColors.textHint),
+          ],
+        ),
+      ),
     );
   }
 }

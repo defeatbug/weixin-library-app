@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
+import 'config/app_config.dart';
 import 'config/application.dart';
 import 'config/app_router.dart';
 import 'config/app_theme.dart';
@@ -11,7 +12,14 @@ class App extends StatefulWidget {
 
   static Future<void> run() async {
     WidgetsFlutterBinding.ensureInitialized();
-    await dotenv.load(fileName: '.env');
+    try {
+      await dotenv.load(fileName: '.env.example');
+    } catch (_) {
+      try {
+        await dotenv.load(fileName: '.env');
+      } catch (_) {}
+    }
+    await appConfig.init();
     await Application.init();
     await WindowManagerInit.init();
     runApp(const App());
@@ -38,13 +46,23 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   }
 
   @override
+  void didChangePlatformBrightness() {
+    appTheme.onPlatformBrightnessChanged();
+    super.didChangePlatformBrightness();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: '微信读书',
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      routerConfig: AppRouter.router,
-      debugShowCheckedModeBanner: false,
+    return ValueListenableBuilder<int>(
+      valueListenable: appTheme.version,
+      builder: (context, _, __) {
+        return MaterialApp.router(
+          title: '微信读书',
+          theme: appTheme.data,
+          routerConfig: AppRouter.router,
+          debugShowCheckedModeBanner: false,
+        );
+      },
     );
   }
 }

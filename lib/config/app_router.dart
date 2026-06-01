@@ -18,6 +18,8 @@ import '../pages/profile/profile_page.dart';
 import '../pages/reader/reader_page.dart';
 import '../pages/add_book/add_book_page.dart';
 import '../pages/search/search_page.dart';
+import '../pages/settings/dark_mode_setting_page.dart';
+import '../pages/settings/settings_page.dart';
 import '../pages/welcome/welcome_page.dart';
 
 class AppRouter {
@@ -31,7 +33,7 @@ class AppRouter {
 
   static final GoRouter router = GoRouter(
     navigatorKey: rootNavigatorKey,
-    initialLocation: '/',
+    initialLocation: '/discover',
     redirect: _authGuard,
     errorBuilder: (context, state) => Scaffold(
       body: Center(
@@ -47,9 +49,14 @@ class AppRouter {
       ),
       GoRoute(
         path: '/login',
-        pageBuilder: (context, state) => _fadeTransitionPage(
-          context, state, const LoginPage(),
-        ),
+        pageBuilder: (context, state) {
+          final register = state.uri.queryParameters['register'] == '1';
+          return _fadeTransitionPage(
+            context,
+            state,
+            LoginPage(initialRegister: register),
+          );
+        },
       ),
       ShellRoute(
         builder: (context, state, child) => _isDesktop
@@ -120,6 +127,18 @@ class AppRouter {
           context, state, const AddBookPage(),
         ),
       ),
+      GoRoute(
+        path: SettingsPage.routePath,
+        pageBuilder: (context, state) => _fadeTransitionPage(
+          context, state, const SettingsPage(),
+        ),
+      ),
+      GoRoute(
+        path: DarkModeSettingPage.routePath,
+        pageBuilder: (context, state) => _fadeTransitionPage(
+          context, state, const DarkModeSettingPage(),
+        ),
+      ),
     ],
   );
 
@@ -132,7 +151,7 @@ class AppRouter {
     final isPublic = publicPaths.contains(path);
 
     if (!loggedIn && !isPublic) return '/welcome';
-    if (loggedIn && isPublic) return '/';
+    if (loggedIn && isPublic) return '/discover';
 
     return null;
   }

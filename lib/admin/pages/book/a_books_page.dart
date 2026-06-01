@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../api/api.dart';
+import '../../../config/app_colors.dart';
 import '../../api/api_admin.dart';
 import '../../../helpers/graphql_helper.dart';
 import '../../../models/book.dart';
+import '../../../widgets/book_cover.dart';
+import '../../../widgets/wr_card.dart';
+import '../../../widgets/wr_text_field.dart';
 
 class ABooksPage extends StatefulWidget {
   const ABooksPage({super.key});
@@ -28,17 +32,27 @@ class _ABooksPageState extends State<ABooksPage> {
     _load();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     setState(() => _isLoading = true);
     try {
       final result = await ApiAdmin.getAdminBooks(
-        page: _page, size: _pageSize, search: _search,
+        page: _page,
+        size: _pageSize,
+        search: _search,
       );
       if (!mounted) return;
       setState(() {
         _books.clear();
         _books.addAll(GraphQLHelper.getItemsFromResult(
-          result, Book.fromJson, ['adminBooks', 'items'],
+          result,
+          Book.fromJson,
+          ['adminBooks', 'items'],
         ));
         _total = (result.data?['adminBooks']?['total'] as num?)?.toInt() ?? 0;
         _isLoading = false;
@@ -56,9 +70,8 @@ class _ABooksPageState extends State<ABooksPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('图书管理'),
         actions: [
@@ -71,102 +84,156 @@ class _ABooksPageState extends State<ABooksPage> {
       ),
       body: Column(
         children: [
-          // Search bar
           Padding(
-            padding: const EdgeInsets.all(12),
-            child: TextField(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: WrTextField(
               controller: _searchController,
-              decoration: InputDecoration(
-                hintText: '搜索书名或作者...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          _onSearch('');
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              ),
+              hint: '搜索书名或作者',
+              icon: Icons.search,
               onSubmitted: _onSearch,
             ),
           ),
-
-          // Data table
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.primary,
+                    ),
+                  )
                 : _books.isEmpty
-                    ? const Center(child: Text('暂无图书'))
-                    : _buildTable(theme),
+                    ? Center(
+                        child: Text(
+                          '暂无图书',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _load,
+                        color: AppColors.primary,
+                        child: ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                          itemCount: _books.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 10),
+                          itemBuilder: (context, index) {
+                            final book = _books[index];
+                            return WrCard(
+                              padding: const EdgeInsets.all(12),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  BookCover(
+                                    coverUrl: book.coverUrl,
+                                    fileUrl: book.fileUrl,
+                                    fileType: book.fileType,
+                                    title: book.title,
+                                    width: 48,
+                                    height: 64,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          book.title,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          book.author,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Row(
+                                          children: [
+                                            _Tag(text: book.fileType),
+                                            if (book.averageRating != null &&
+                                                book.averageRating! > 0) ...[
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                '${book.averageRating!.toStringAsFixed(1)} 分',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: AppColors.iconOrange,
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Column(
+                                    children: [
+                                      IconButton(
+                                        icon: Icon(Icons.edit_outlined,
+                                            size: 20, color: AppColors.primary),
+                                        onPressed: () => _showEditDialog(book),
+                                      ),
+                                      IconButton(
+                                        icon: Icon(Icons.delete_outline,
+                                            size: 20, color: AppColors.iconCoral),
+                                        onPressed: () => _confirmDelete(book),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
           ),
-
-          // Pagination
-          _buildPagination(theme),
+          _buildPagination(),
         ],
       ),
     );
   }
 
-  Widget _buildTable(ThemeData theme) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: SingleChildScrollView(
-        child: DataTable(
-          columns: const [
-            DataColumn(label: Text('书名')),
-            DataColumn(label: Text('作者')),
-            DataColumn(label: Text('格式')),
-            DataColumn(label: Text('评分')),
-            DataColumn(label: Text('操作')),
-          ],
-          rows: _books.map((book) {
-            return DataRow(cells: [
-              DataCell(Text(book.title, overflow: TextOverflow.ellipsis)),
-              DataCell(Text(book.author)),
-              DataCell(Text(book.fileType)),
-              DataCell(Text(book.averageRating?.toStringAsFixed(1) ?? '-')),
-              DataCell(Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextButton(
-                    onPressed: () => _showEditDialog(book),
-                    child: const Text('编辑'),
-                  ),
-                  TextButton(
-                    onPressed: () => _confirmDelete(book),
-                    child: Text('删除', style: TextStyle(color: theme.colorScheme.error)),
-                  ),
-                ],
-              )),
-            ]);
-          }).toList(),
-        ),
+  Widget _buildPagination() {
+    final totalPages = (_total / _pageSize).ceil().clamp(1, 9999);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        border: Border(top: BorderSide(color: AppColors.divider)),
       ),
-    );
-  }
-
-  Widget _buildPagination(ThemeData theme) {
-    final totalPages = (_total / _pageSize).ceil();
-    return Padding(
-      padding: const EdgeInsets.all(12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           TextButton(
-            onPressed: _page > 0 ? () { _page--; _load(); } : null,
+            onPressed: _page > 0
+                ? () {
+                    _page--;
+                    _load();
+                  }
+                : null,
             child: const Text('上一页'),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text('第 ${_page + 1} 页 / 共 $totalPages 页 (${_total}条)'),
+            child: Text(
+              '${_page + 1} / $totalPages · $_total 条',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
           ),
           TextButton(
-            onPressed: (_page + 1) < totalPages ? () { _page++; _load(); } : null,
+            onPressed: (_page + 1) < totalPages
+                ? () {
+                    _page++;
+                    _load();
+                  }
+                : null,
             child: const Text('下一页'),
           ),
         ],
@@ -187,25 +254,39 @@ class _ABooksPageState extends State<ABooksPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: '书名')),
+              TextField(
+                controller: titleCtrl,
+                decoration: const InputDecoration(labelText: '书名'),
+              ),
               const SizedBox(height: 8),
-              TextField(controller: authorCtrl, decoration: const InputDecoration(labelText: '作者')),
+              TextField(
+                controller: authorCtrl,
+                decoration: const InputDecoration(labelText: '作者'),
+              ),
               const SizedBox(height: 8),
-              TextField(controller: descCtrl, decoration: const InputDecoration(labelText: '简介'), maxLines: 3),
+              TextField(
+                controller: descCtrl,
+                decoration: const InputDecoration(labelText: '简介'),
+                maxLines: 3,
+              ),
             ],
           ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-          FilledButton(onPressed: () async {
-            await ApiAdmin.updateBook(book.id, {
-              'title': titleCtrl.text.trim(),
-              'author': authorCtrl.text.trim(),
-              if (descCtrl.text.trim().isNotEmpty) 'description': descCtrl.text.trim(),
-            });
-            if (ctx.mounted) Navigator.pop(ctx);
-            _load();
-          }, child: const Text('保存')),
+          FilledButton(
+            onPressed: () async {
+              await ApiAdmin.updateBook(book.id, {
+                'title': titleCtrl.text.trim(),
+                'author': authorCtrl.text.trim(),
+                if (descCtrl.text.trim().isNotEmpty)
+                  'description': descCtrl.text.trim(),
+              });
+              if (ctx.mounted) Navigator.pop(ctx);
+              _load();
+            },
+            child: const Text('保存'),
+          ),
         ],
       ),
     );
@@ -218,10 +299,13 @@ class _ABooksPageState extends State<ABooksPage> {
         title: const Text('删除图书'),
         content: Text('确定删除《${book.title}》吗？此操作不可撤销。'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.iconCoral),
             child: const Text('删除'),
           ),
         ],
@@ -231,5 +315,26 @@ class _ABooksPageState extends State<ABooksPage> {
       await Api.mutate('mutation { deleteBook(id: "${book.id}") }');
       _load();
     }
+  }
+}
+
+class _Tag extends StatelessWidget {
+  final String text;
+
+  const _Tag({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.primaryLight,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 11, color: AppColors.primary),
+      ),
+    );
   }
 }

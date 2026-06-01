@@ -4,10 +4,13 @@ import 'package:go_router/go_router.dart';
 import '../../api/book_api.dart';
 import '../../api/bookshelf_api.dart';
 import '../../api/review_api.dart';
+import '../../config/app_colors.dart';
 import '../../helpers/graphql_helper.dart';
 import '../../models/book.dart';
 import '../../models/current_user.dart';
 import '../../models/review.dart';
+import '../../widgets/book_cover.dart';
+import '../../widgets/wr_card.dart';
 
 class BookDetailPage extends StatefulWidget {
   final String bookId;
@@ -44,21 +47,17 @@ class _BookDetailPageState extends State<BookDetailPage> {
 
     setState(() {
       _book = GraphQLHelper.getItemFromResult(
-        results[0],
-        Book.fromJson,
-        ['book'],
+        results[0], Book.fromJson, ['book'],
       );
       _reviews = GraphQLHelper.getItemsFromResult(
-        results[1],
-        Review.fromJson,
-        ['reviewsByBook', 'items'],
+        results[1], Review.fromJson, ['reviewsByBook', 'items'],
       );
       final shelfItems = GraphQLHelper.getItemsFromResult(
         results[2],
         (m) => m['book']['id'] as String,
         ['myBookshelf'],
       );
-      _isOnShelf = (shelfItems as List).contains(widget.bookId);
+      _isOnShelf = shelfItems.contains(widget.bookId);
       _isLoading = false;
     });
   }
@@ -98,7 +97,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
                   return IconButton(
                     icon: Icon(
                       i < rating ? Icons.star : Icons.star_border,
-                      color: Colors.amber[700],
+                      color: AppColors.iconOrange,
                       size: 36,
                     ),
                     onPressed: () => setDialogState(() => rating = i + 1),
@@ -108,9 +107,14 @@ class _BookDetailPageState extends State<BookDetailPage> {
               const SizedBox(height: 8),
               TextField(
                 controller: controller,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: '写下你的想法...',
-                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: AppColors.searchBg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
                 maxLines: 3,
               ),
@@ -120,8 +124,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
             if (existing != null)
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop('delete'),
-                child: Text('删除',
-                    style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+                child: Text('删除', style: TextStyle(color: AppColors.iconCoral)),
               ),
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(null),
@@ -165,18 +168,18 @@ class _BookDetailPageState extends State<BookDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     if (_isLoading) {
       return Scaffold(
+        backgroundColor: AppColors.background,
         appBar: AppBar(),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
       );
     }
 
     final book = _book;
     if (book == null) {
       return Scaffold(
+        backgroundColor: AppColors.background,
         appBar: AppBar(),
         body: const Center(child: Text('图书不存在')),
       );
@@ -185,6 +188,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
     final myReview = _myReview();
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(book.title, overflow: TextOverflow.ellipsis),
         actions: [
@@ -195,54 +199,80 @@ class _BookDetailPageState extends State<BookDetailPage> {
         ],
       ),
       body: SingleChildScrollView(
+        padding: const EdgeInsets.only(bottom: 32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Cover & Info
             Padding(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      width: 120,
-                      height: 180,
-                      color: theme.colorScheme.surfaceContainerHighest,
-                      child: book.coverUrl != null
-                          ? Image.network(book.coverUrl!, fit: BoxFit.cover)
-                          : const Icon(Icons.auto_stories, size: 40),
-                    ),
+                  BookCover(
+                    coverUrl: book.coverUrl,
+                    fileUrl: book.fileUrl,
+                    fileType: book.fileType,
+                    title: book.title,
+                    width: 110,
+                    height: 154,
+                    radius: 8,
                   ),
-                  const SizedBox(width: 20),
+                  const SizedBox(width: 18),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(book.title,
-                            style: theme.textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.bold)),
+                        Text(
+                          book.title,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                            height: 1.3,
+                          ),
+                        ),
                         const SizedBox(height: 8),
-                        Text(book.author,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant)),
+                        Text(
+                          book.author,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
                         if (book.publisher != null) ...[
                           const SizedBox(height: 4),
-                          Text(book.publisher!,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant)),
-                        ],
-                        if (book.averageRating != null) ...[
-                          const SizedBox(height: 12),
-                          Row(children: [
-                            Icon(Icons.star, size: 20, color: Colors.amber[700]),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${book.averageRating!.toStringAsFixed(1)} (${book.reviewCount})',
-                              style: theme.textTheme.bodySmall,
+                          Text(
+                            book.publisher!,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textHint,
                             ),
-                          ]),
+                          ),
+                        ],
+                        if (book.averageRating != null &&
+                            book.averageRating! > 0) ...[
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Icon(Icons.star,
+                                  size: 18, color: AppColors.iconOrange),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${book.averageRating!.toStringAsFixed(1)} 推荐值',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.iconOrange,
+                                ),
+                              ),
+                              Text(
+                                ' · ${book.reviewCount} 人点评',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textHint,
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
                       ],
                     ),
@@ -250,61 +280,92 @@ class _BookDetailPageState extends State<BookDetailPage> {
                 ],
               ),
             ),
-
-            // Action buttons
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () => context.push('/reader/${book.id}'),
-                    icon: const Icon(Icons.menu_book),
-                    label: const Text('开始阅读'),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 44,
+                      child: FilledButton.icon(
+                        onPressed: () => context.push('/reader/${book.id}'),
+                        icon: const Icon(Icons.menu_book, size: 20),
+                        label: const Text('开始阅读'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(22),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton(
-                  onPressed: _shelfLoading ? null : _toggleShelf,
-                  child: Text(_isOnShelf ? '已在书架' : '加入书架'),
-                ),
-              ]),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    height: 44,
+                    child: OutlinedButton(
+                      onPressed: _shelfLoading ? null : _toggleShelf,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: BorderSide(color: AppColors.border),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                      ),
+                      child: Text(_isOnShelf ? '已在书架' : '加入书架'),
+                    ),
+                  ),
+                ],
+              ),
             ),
-
-            // Description
             if (book.description != null && book.description!.isNotEmpty) ...[
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('内容简介',
-                        style: theme.textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    Text(book.description!,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            height: 1.6)),
-                  ],
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+                child: WrCard(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '内容简介',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        book.description!,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textSecondary,
+                          height: 1.7,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
-
-            const Divider(height: 32),
-
-            // Reviews section
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('读者评论 (${book.reviewCount})',
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.bold)),
+                  Text(
+                    '读者评论 (${book.reviewCount})',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
                   TextButton.icon(
                     onPressed: () => _showReviewDialog(existing: myReview),
-                    icon: Icon(myReview != null ? Icons.edit : Icons.add),
-                    label: Text(myReview != null ? '编辑我的评价' : '写评价'),
+                    icon: Icon(myReview != null ? Icons.edit : Icons.add,
+                        size: 18),
+                    label: Text(myReview != null ? '编辑评价' : '写评价'),
                   ),
                 ],
               ),
@@ -313,58 +374,83 @@ class _BookDetailPageState extends State<BookDetailPage> {
               Padding(
                 padding: const EdgeInsets.all(32),
                 child: Center(
-                  child: Text('暂无评论，来写第一条吧',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant)),
+                  child: Text(
+                    '暂无评论，来写第一条吧',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
                 ),
               )
             else
               ...List.generate(_reviews.length, (index) {
                 final review = _reviews[index];
                 final isMine = review.user.id == CurrentUser.instance.userId;
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: theme.colorScheme.primaryContainer,
-                    child: Text(
-                      review.user.displayName.isNotEmpty
-                          ? review.user.displayName[0]
-                          : '?',
-                      style: TextStyle(color: theme.colorScheme.primary),
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                  child: WrCard(
+                    padding: const EdgeInsets.all(14),
+                    onTap: isMine
+                        ? () => _showReviewDialog(existing: review)
+                        : null,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 16,
+                              backgroundColor: AppColors.primaryLight,
+                              child: Text(
+                                review.user.displayName.isNotEmpty
+                                    ? review.user.displayName[0]
+                                    : '?',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                review.user.displayName +
+                                    (isMine ? ' (我)' : ''),
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ),
+                            Row(
+                              children: List.generate(5, (i) {
+                                return Icon(
+                                  i < review.rating
+                                      ? Icons.star
+                                      : Icons.star_border,
+                                  size: 14,
+                                  color: AppColors.iconOrange,
+                                );
+                              }),
+                            ),
+                          ],
+                        ),
+                        if (review.content != null &&
+                            review.content!.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            review.content!,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppColors.textPrimary,
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                  title: Row(children: [
-                    Text(review.user.displayName,
-                        style: theme.textTheme.bodyMedium),
-                    if (isMine) ...[
-                      const SizedBox(width: 6),
-                      Text('(我)',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.primary)),
-                    ],
-                  ]),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 4),
-                      Row(children: List.generate(5, (i) {
-                        return Icon(
-                          i < review.rating ? Icons.star : Icons.star_border,
-                          size: 14,
-                          color: Colors.amber[700],
-                        );
-                      })),
-                      if (review.content != null) ...[
-                        const SizedBox(height: 4),
-                        Text(review.content!, maxLines: 3),
-                      ],
-                    ],
-                  ),
-                  onTap: isMine
-                      ? () => _showReviewDialog(existing: review)
-                      : null,
                 );
               }),
-            const SizedBox(height: 24),
           ],
         ),
       ),
