@@ -92,15 +92,17 @@ class _FriendFeedPageState extends State<FriendFeedPage> {
 
   Widget _buildMainTabs() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: Row(
-        children: [
-          _mainTabButton('有声书', 0),
-          const SizedBox(width: 20),
-          _mainTabButton('书友', 1),
-        ],
-      ),
-    );
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+        child: Center(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _mainTabButton('有声书', 0),
+              const SizedBox(width: 20),
+              _mainTabButton('书友', 1),
+            ],
+          ),
+        ));
   }
 
   Widget _mainTabButton(String label, int index) {
